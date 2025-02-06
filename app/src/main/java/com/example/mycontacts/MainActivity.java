@@ -6,6 +6,7 @@ import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.provider.ContactsContract;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
@@ -62,6 +63,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private void displayPhoneContacts(){
         ContentResolver cr = getBaseContext().getContentResolver();
+        try(Cursor rcur = cr.query(ContactsContract.RawContacts.CONTENT_URI, null, null, null, null)) {
+            assert rcur != null;
+            while(rcur.moveToNext()) {
+                Log.i("TAG", rcur.getString(4));
+                Log.i("TAG", rcur.getString(11));
+            }
+        }
         try (Cursor cur = cr.query(ContactsContract.Contacts.CONTENT_URI,
                 null, null, null, null)) {
             assert cur != null;
@@ -80,10 +88,21 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                             assert pCur != null;
                             if (!pCur.moveToNext()) break;
                             String phoneNo = pCur.getString(pCur.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER));
-                            Toast.makeText(MainActivity.this, "Name: " + name + ", Phone No: " + phoneNo, Toast.LENGTH_SHORT).show();
+                            Log.i("displayPhoneContacts: ", "Name: " + name + ", Phone No: " + phoneNo);
                         }
                         pCur.close();
-                    }
+                        pCur = cr.query(ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+                                null,
+                                ContactsContract.CommonDataKinds.Email.CONTACT_ID + " = ?",
+                                new String[]{id}, null);
+                        while (true) {
+                            assert pCur != null;
+                            if (!pCur.moveToNext()) break;
+                            String email = pCur.getString(pCur.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Email.ADDRESS));
+                            Log.i("displayPhoneContacts: ", "Name: " + name + ", Email: " + email);
+                        }
+
+                        }
                 }
             }
         }
