@@ -27,6 +27,7 @@ import android.Manifest;
 public class MainActivity extends AppCompatActivity implements View.OnClickListener, ActivityResultCallback {
 
     private ActivityResultLauncher requestPermissionLauncher;
+    private String TAG = "displayPhoneContacts";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,8 +67,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         try(Cursor rcur = cr.query(ContactsContract.RawContacts.CONTENT_URI, null, null, null, null)) {
             assert rcur != null;
             while(rcur.moveToNext()) {
-                Log.i("TAG", rcur.getString(4));
-                Log.i("TAG", rcur.getString(11));
+                Log.i(TAG, "User Account name: " + rcur.getString(rcur.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_NAME)));
+                Log.i(TAG, "User Account type: " + rcur.getString(rcur.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_TYPE)));
             }
         }
         try (Cursor cur = cr.query(ContactsContract.Contacts.CONTENT_URI,
