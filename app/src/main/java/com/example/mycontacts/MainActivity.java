@@ -1,5 +1,7 @@
 package com.example.mycontacts;
 
+import android.accounts.Account;
+import android.accounts.AccountManager;
 import android.content.ContentResolver;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
@@ -34,6 +36,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
+        AccountManager manager = (AccountManager) getSystemService(ACCOUNT_SERVICE);
+        Account[] list = manager.getAccounts();
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
@@ -103,7 +107,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                             Log.i("displayPhoneContacts: ", "Name: " + name + ", Email: " + email);
                         }
 
-                        }
+                    }
                 }
             }
         }
