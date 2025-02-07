@@ -25,19 +25,20 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import android.Manifest;
+import java.util.Arrays;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener, ActivityResultCallback {
 
     private ActivityResultLauncher requestPermissionLauncher;
     private String TAG = "displayPhoneContacts";
+    private final int DISPLAY_CONTACTS_BUTTON_TAG = 0;
+    private final int SIGN_IN_ACCOUNT_BUTTON_TAG = 1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
-        AccountManager manager = (AccountManager) getSystemService(ACCOUNT_SERVICE);
-        Account[] list = manager.getAccounts();
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
@@ -45,6 +46,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         });
         Button contacts = findViewById(R.id.button);
         contacts.setOnClickListener(this::onClick);
+        Button signInAccount = findViewById(R.id.button2);
+        signInAccount.setOnClickListener(this::onClick);
         requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), this);
         if (checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             // Use the traditional way to request permissions and then implement onRequestPermissionsResult() to
@@ -75,6 +78,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 Log.i(TAG, "User Account type: " + rcur.getString(rcur.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_TYPE)));
             }
         }
+        Toast.makeText(this, "Please check logcat", Toast.LENGTH_SHORT).show();
         try (Cursor cur = cr.query(ContactsContract.Contacts.CONTENT_URI,
                 null, null, null, null)) {
             assert cur != null;
@@ -112,9 +116,31 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
         }
     }
+
+    private String getSignInAccount(){
+        AccountManager manager = (AccountManager) getSystemService(ACCOUNT_SERVICE);
+        Account[] list = manager.getAccounts();
+        for (Account account:
+        list) {
+            if (account.type.equals("com.google")) {
+                Log.i(TAG, String.format("getSignInAccount: %s", account.name));
+                return account.name;
+            }
+        }
+        return "hearables.test@google.com";
+    }
+
     @Override
     public void onClick(View v) {
-        displayPhoneContacts();
+        Integer tag = Integer.parseInt(v.getTag().toString());
+        switch(tag) {
+            case DISPLAY_CONTACTS_BUTTON_TAG:
+                displayPhoneContacts();
+                break;
+            case SIGN_IN_ACCOUNT_BUTTON_TAG:
+                Toast.makeText(this, getSignInAccount(), Toast.LENGTH_SHORT).show();
+                break;
+        }
     }
 
     @Override
