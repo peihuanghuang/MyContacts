@@ -3,4 +3,6 @@
     <string name="app_title">Phone contacts</string>
     <string name="display_contacts_button">Dump Contacts</string>
     <string name="display_sign_account">Show Sign-in account</string>
+    <string name='add_mother_contact'>Add mother contact</string>
+    <string name='delete_mother_contact'>Delete mother contact</string>
 </resources>
