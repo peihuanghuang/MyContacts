@@ -1,13 +1,22 @@
 package com.example.mycontacts;
 
+import android.Manifest.permission;
 import android.accounts.Account;
 import android.accounts.AccountManager;
+import android.content.ContentProviderOperation;
+import android.content.ContentProviderResult;
 import android.content.ContentResolver;
 import android.content.DialogInterface;
+import android.content.OperationApplicationException;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.os.RemoteException;
 import android.provider.ContactsContract;
+import android.provider.ContactsContract.CommonDataKinds.Phone;
+import android.provider.ContactsContract.CommonDataKinds.StructuredName;
+import android.provider.ContactsContract.Contacts;
+import android.provider.ContactsContract.Data;
 import android.provider.ContactsContract.RawContacts;
 import android.util.Log;
 import android.view.View;
@@ -26,7 +35,9 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import android.Manifest;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener,
     ActivityResultCallback {
@@ -35,7 +46,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
   private String TAG = "displayPhoneContacts";
   private final int DISPLAY_CONTACTS_BUTTON_TAG = 0;
   private final int SIGN_IN_ACCOUNT_BUTTON_TAG = 1;
-  private final int ADD_CONTACTS = 2;
+  private final int ADD_CONTACTS_BUTTON_TAG = 2;
+  private final int DELETE_CONTACTS_BUTTON_TAG = 3;
   private ContentResolver contentResolver;
 
   @Override
@@ -52,20 +64,54 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     contacts.setOnClickListener(this::onClick);
     Button signInAccount = findViewById(R.id.button2);
     signInAccount.setOnClickListener(this::onClick);
-    requestPermissionLauncher = registerForActivityResult(
-        new ActivityResultContracts.RequestPermission(), this);
+    Button addContacts = findViewById(R.id.button3);
+    addContacts.setOnClickListener(this::onClick);
+    Button deleteContacts = findViewById(R.id.button4);
+    deleteContacts.setOnClickListener(this::onClick);
     if (checkSelfPermission(Manifest.permission.READ_CONTACTS)
-        != PackageManager.PERMISSION_GRANTED) {
-      // Use the traditional way to request permissions and then implement onRequestPermissionsResult() to
-      // handle grants.
-      // ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_CONTACTS}, 0);
-      // Alternative, use Androidx ActivityResultContracts.RequestPermission()
+        != PackageManager.PERMISSION_GRANTED ||
+        checkSelfPermission(permission.WRITE_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED) {
+      /*
+      Use the traditional way to request permissions and then implement onRequestPermissionsResult() to
+      handle grants.
+      ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_CONTACTS}, 0);
+      */
+      /*
+      Alternative, use Androidx ActivityResultContracts.RequestPermission()
+      AppCompactActivity class implements ActivityResultCaller interface,
+      https://developer.android.com/reference/androidx/activity/result/ActivityResultCaller
+      Call ActivityResultCaller#registerForActivityResult() with one of two usages below.
+      The first parameter is an instance of ActivityResultContracts.RequestPermission()
+      1. request one permission.
+      The second parameter is the callback which will be called by system to handle
+      the result granted by users by an UI grant. The system will pass a boolean value to your
+      callback.
+      onActivityResult(Object o){
+      boolean isGranted = (boolean)o;
+      ...
+      ...
+      }
+      2. request multiple permissions.
+      The second parameter is the callback which will be called by system to handle
+      the result granted by users by an UI grant. The system will pass an instance of
+      the LinkedHashMap, the keys are Manifest.permission, like android.permission.WRITE_CONTACTS,
+      the value is boolean, to your callback.
+      onActivityResult(Object o){
+      LinkedHashMap isGranted = (LinkedHashMap)o;
+      if (isGranted.get(key)) {
+        ...
+        ...
+        }
+      }
+      */
       requestPermissionLauncher = registerForActivityResult(
-          new ActivityResultContracts.RequestPermission(), this);
-      if (shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS)) {
+          new ActivityResultContracts.RequestMultiplePermissions(), this);
+      if (shouldShowRequestPermissionRationale(Manifest.permission.WRITE_CONTACTS)) {
         showAlertDialog();
       } else {
-        requestPermissionLauncher.launch(Manifest.permission.READ_CONTACTS);
+        requestPermissionLauncher.launch(new String[]{Manifest.permission.WRITE_CONTACTS,
+            permission.READ_CONTACTS});
       }
     }
     contentResolver = getBaseContext().getContentResolver();
@@ -98,7 +144,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
           Cursor rawCur = contentResolver.query(RawContacts.CONTENT_URI, null,
               RawContacts.CONTACT_ID + "=" + id, null, null);
           if (rawCur.getCount() > 0) {
-            while(rawCur.moveToNext()) {
+            while (rawCur.moveToNext()) {
               Log.i(TAG, "User Account name: " + rawCur.getString(
                   rawCur.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_NAME)));
               Log.i(TAG, "User Account type: " + rawCur.getString(
@@ -153,11 +199,72 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         return account.name;
       }
     }
-    return "hearables.test@google.com";
+    return "tl4a@gmail.com";
   }
 
-  private void addContacts(String name, String phone) {
+  private void insertContact(String contactName, String phoneNumber) {
+    Cursor cursor = contentResolver.query(Contacts.CONTENT_URI, null, null, null, null);
+    assert cursor != null;
+    while (cursor.moveToNext()) {
+      String contactDisplayName = cursor.getString(
+          cursor.getColumnIndexOrThrow(Contacts.DISPLAY_NAME));
+      if (contactDisplayName.equals(contactName)) {
+        Toast.makeText(this, String.format("The contact, %s, already exists", contactName),
+            Toast.LENGTH_SHORT).show();
+        return;
+      }
+    }
+    ArrayList<ContentProviderOperation> insertOperations = new ArrayList<>();
+    int rawContactInsertIndex = insertOperations.size();
+    insertOperations.add(ContentProviderOperation.newInsert(RawContacts.CONTENT_URI)
+        .withValue(RawContacts.ACCOUNT_NAME, getSignInAccount())
+        .withValue(RawContacts.ACCOUNT_TYPE, "com.google").build());
+    insertOperations.add(ContentProviderOperation.newInsert(Data.CONTENT_URI)
+        .withValueBackReference(Data.RAW_CONTACT_ID, rawContactInsertIndex)
+        .withValue(Data.MIMETYPE, StructuredName.CONTENT_ITEM_TYPE)
+        .withValue(StructuredName.DISPLAY_NAME, contactName).build());
+    insertOperations.add(ContentProviderOperation.newInsert(Data.CONTENT_URI)
+        .withValueBackReference(Data.RAW_CONTACT_ID, rawContactInsertIndex)
+        .withValue(Data.MIMETYPE, Phone.CONTENT_ITEM_TYPE)
+        .withValue(Phone.NUMBER, phoneNumber)
+        .withValue(Phone.TYPE, Phone.TYPE_MOBILE).build());
+    try {
+      contentResolver.applyBatch(ContactsContract.AUTHORITY, insertOperations);
+      Toast.makeText(this, String.format("The contact, %s, is successfully added!", contactName),
+          Toast.LENGTH_LONG).show();
+    } catch (OperationApplicationException e) {
+      throw new RuntimeException(e);
+    } catch (RemoteException e) {
+      throw new RuntimeException(e);
+    }
 
+  }
+
+  public void deleteContact(String contactName) {
+    String where = String.format("%s = ? ", Data.DISPLAY_NAME);
+    String[] parameters = new String[]{contactName};
+
+    ArrayList<ContentProviderOperation> deleteOperations = new ArrayList<>();
+    deleteOperations.add(ContentProviderOperation.newDelete(RawContacts.CONTENT_URI)
+        .withSelection(where, parameters).build());
+
+    ContentProviderResult[] result;
+    try {
+      result = getContentResolver().applyBatch(ContactsContract.AUTHORITY, deleteOperations);
+    } catch (OperationApplicationException e) {
+      throw new RuntimeException(e);
+    } catch (RemoteException e) {
+      throw new RuntimeException(e);
+    }
+
+    if (result[0].count != 0){
+      Toast.makeText(this, String.format("Deleted the contact, %s, successfully!", contactName),
+          Toast.LENGTH_LONG).show();
+    }
+    else {
+      Toast.makeText(this, String.format("The contact, %s, doesn't exist!", contactName),
+          Toast.LENGTH_LONG).show();
+    }
   }
 
   @Override
@@ -170,15 +277,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
       case SIGN_IN_ACCOUNT_BUTTON_TAG:
         Toast.makeText(this, getSignInAccount(), Toast.LENGTH_SHORT).show();
         break;
-      case ADD_CONTACTS:
-
+      case ADD_CONTACTS_BUTTON_TAG:
+        insertContact("Mother", "0916590968");
+        break;
+      case DELETE_CONTACTS_BUTTON_TAG:
+        deleteContact("Mother");
     }
   }
 
   @Override
   public void onActivityResult(Object o) {
-    boolean granted = (boolean) o;
-    if (!granted) {
+    LinkedHashMap<String, Boolean> granted = (LinkedHashMap<String, Boolean>) o;
+    if (!granted.get("android.permission.WRITE_CONTACTS") || !granted.get(
+        "android.permission.READ_CONTACTS")) {
       finishAndRemoveTask();
     }
   }
