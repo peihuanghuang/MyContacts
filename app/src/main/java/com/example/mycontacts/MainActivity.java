@@ -38,12 +38,14 @@ import android.Manifest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Optional;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener,
     ActivityResultCallback {
 
   private ActivityResultLauncher requestPermissionLauncher;
-  private String TAG = "displayPhoneContacts";
+  private String TAG = "displayContacts";
   private final int DISPLAY_CONTACTS_BUTTON_TAG = 0;
   private final int SIGN_IN_ACCOUNT_BUTTON_TAG = 1;
   private final int ADD_CONTACTS_BUTTON_TAG = 2;
@@ -60,8 +62,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
       v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
       return insets;
     });
-    Button contacts = findViewById(R.id.button);
-    contacts.setOnClickListener(this::onClick);
+    Button listContacts = findViewById(R.id.button);
+    listContacts.setOnClickListener(this::onClick);
     Button signInAccount = findViewById(R.id.button2);
     signInAccount.setOnClickListener(this::onClick);
     Button addContacts = findViewById(R.id.button3);
@@ -115,6 +117,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
       }
     }
     contentResolver = getBaseContext().getContentResolver();
+    List<Contact> contacts = queryContactsByName("Jason");
   }
 
 //    @Override
@@ -122,7 +125,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 //        super.onRequestPermissionsResult(requestCode, permissions, grantResults, deviceId);
 //    }
 
-  private void displayPhoneContacts() {
+  private void displayContacts() {
     try (Cursor rcur = contentResolver.query(ContactsContract.RawContacts.CONTENT_URI, null, null,
         null, null)) {
       assert rcur != null;
@@ -151,6 +154,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                   rawCur.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_TYPE)));
             }
           }
+          rawCur.close();
           if (Integer.parseInt(cur.getString(
               cur.getColumnIndexOrThrow(ContactsContract.Contacts.HAS_PHONE_NUMBER))) > 0) {
             Cursor pCur = contentResolver.query(
@@ -165,7 +169,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
               }
               String phoneNo = pCur.getString(
                   pCur.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER));
-              Log.i("displayPhoneContacts: ", "Name: " + name + ", Phone No: " + phoneNo);
+              Log.i("displayContacts: ", "Name: " + name + ", Phone No: " + phoneNo);
             }
             pCur.close();
             pCur = contentResolver.query(ContactsContract.CommonDataKinds.Email.CONTENT_URI,
@@ -179,12 +183,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
               }
               String email = pCur.getString(
                   pCur.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Email.ADDRESS));
-              Log.i("displayPhoneContacts: ", "Name: " + name + ", Email: " + email);
+              Log.i("displayContacts: ", "Name: " + name + ", Email: " + email);
             }
+            pCur.close();
 
           }
         }
       }
+      cur.close();
     }
     Toast.makeText(this, "Please check logcat", Toast.LENGTH_SHORT).show();
   }
@@ -257,11 +263,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
       throw new RuntimeException(e);
     }
 
-    if (result[0].count != 0){
+    if (result[0].count != 0) {
       Toast.makeText(this, String.format("Deleted the contact, %s, successfully!", contactName),
           Toast.LENGTH_LONG).show();
-    }
-    else {
+    } else {
       Toast.makeText(this, String.format("The contact, %s, doesn't exist!", contactName),
           Toast.LENGTH_LONG).show();
     }
@@ -272,7 +277,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     Integer tag = Integer.parseInt(v.getTag().toString());
     switch (tag) {
       case DISPLAY_CONTACTS_BUTTON_TAG:
-        displayPhoneContacts();
+        displayContacts();
         break;
       case SIGN_IN_ACCOUNT_BUTTON_TAG:
         Toast.makeText(this, getSignInAccount(), Toast.LENGTH_SHORT).show();
@@ -306,6 +311,53 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
           }
         });
     alertDialogBuilder.show();
+  }
+
+  private List<Contact> queryContactsByName(String name) {
+    String where = String.format("%s = ?", Contacts.DISPLAY_NAME);
+    List<Contact> contacts = new ArrayList<>();
+    List<String> contactPhoneNumbers = new ArrayList<>();
+    Cursor cursor = contentResolver.query(ContactsContract.Contacts.CONTENT_URI, null, where,
+        new String[]{name}, null);
+    while (cursor.moveToNext()) {
+      String id = cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID));
+      if (Integer.parseInt(cursor.getString(
+          cursor.getColumnIndexOrThrow(ContactsContract.Contacts.HAS_PHONE_NUMBER))) > 0) {
+        contactPhoneNumbers = getContactPhoneNumbers(id);
+      }
+      contacts.add(Contact.builder()
+          .setDisplayName(cursor.getString(cursor.getColumnIndexOrThrow(Contacts.DISPLAY_NAME)))
+          .setAccount(getContactAccount(id).get())
+          .setPhoneNumber(contactPhoneNumbers).build());
+    }
+    return contacts;
+  }
+
+  private Optional<String> getContactAccount(String contactId) {
+    Cursor rawCursor = contentResolver.query(RawContacts.CONTENT_URI, null,
+        String.format("%s = %s", RawContacts.CONTACT_ID, contactId), null, null);
+    while (rawCursor.moveToNext()) {
+      return Optional.of(
+          rawCursor.getString(rawCursor.getColumnIndexOrThrow(RawContacts.ACCOUNT_NAME)));
+    }
+    return Optional.empty();
+  }
+
+  private List<String> getContactPhoneNumbers(String contactId) {
+    List<String> phoneNumbers = new ArrayList<>();
+    Cursor phoneCursor = contentResolver.query(
+        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+        null,
+        ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?",
+        new String[]{contactId}, null);
+    while (phoneCursor.moveToNext()) {
+      String phoneNo = phoneCursor.getString(
+          phoneCursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER));
+      phoneNumbers.add(phoneNo);
+      Log.i("getContactPhoneNumber: ", String.format("Phone No: %s", phoneNo));
+    }
+    phoneCursor.close();
+    return phoneNumbers;
   }
 
   @Override

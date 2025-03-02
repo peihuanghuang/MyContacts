@@ -37,4 +37,6 @@ dependencies {
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
+    compileOnly         "com.google.auto.value:auto-value-annotations:1.11.0"
+    annotationProcessor "com.google.auto.value:auto-value:1.11.0"
 }
