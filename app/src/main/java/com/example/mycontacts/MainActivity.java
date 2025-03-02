@@ -6,7 +6,6 @@ import android.accounts.AccountManager;
 import android.content.ContentProviderOperation;
 import android.content.ContentProviderResult;
 import android.content.ContentResolver;
-import android.content.DialogInterface;
 import android.content.OperationApplicationException;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -27,16 +26,13 @@ import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import android.Manifest;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
@@ -304,11 +300,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     alertDialogBuilder.setMessage(
         "This app needs you to allow this permission in order to function.Will you allow it");
     alertDialogBuilder.setPositiveButton("Yes",
-        new DialogInterface.OnClickListener() {
-          @Override
-          public void onClick(DialogInterface arg0, int arg1) {
-            requestPermissionLauncher.launch(Manifest.permission.READ_CONTACTS);
-          }
+        (arg0, arg1) -> {
+          requestPermissionLauncher.launch(permission.READ_CONTACTS);
         });
     alertDialogBuilder.show();
   }
@@ -330,6 +323,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
           .setAccount(getContactAccount(id).get())
           .setPhoneNumber(contactPhoneNumbers).build());
     }
+    cursor.close();
     return contacts;
   }
 
